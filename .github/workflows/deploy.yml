@@ -26,6 +26,11 @@ jobs:
         env:
           VITE_BASE_PATH: /monthly_budg_app/
       
+      - uses: actions/upload-artifact@v4
+        with:
+          name: github-pages
+          path: dist
+      
       - uses: actions/deploy-pages@v4
         with:
           folder: dist
