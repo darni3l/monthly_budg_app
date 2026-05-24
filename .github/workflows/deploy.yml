@@ -30,6 +30,8 @@ jobs:
         with:
           name: github-pages
           path: dist
+          if-no-files-found: error
+          retention-days: 1
       
       - uses: actions/deploy-pages@v4
         with:
