@@ -1,0 +1,41 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+  id-token: write
+  pages: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - run: npm ci --prefer-offline --no-audit
+
+      - run: npm run build
+        env:
+          VITE_BASE_PATH: /monthly_budg_app/
+
+      - run: find dist -type l -delete
+        if: runner.os != 'Windows'
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: github-pages
+          path: dist
+          if-no-files-found: error
+          retention-days: 1
+
+      - uses: actions/deploy-pages@v4
+        with:
+          artifact_name: github-pages
