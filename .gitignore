@@ -5,3 +5,8 @@ dist
 *.local
 *.tsbuildinfo
 coverage
+
+# Capacitor native builds (large, should be generated locally)
+ios/
+android/
+.capacitor/
