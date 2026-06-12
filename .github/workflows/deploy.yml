@@ -20,11 +20,14 @@ jobs:
         with:
           node-version: '18'
 
-      - run: npm ci
+      - run: npm ci --prefer-offline --no-audit
 
       - run: npm run build
         env:
           VITE_BASE_PATH: /monthly_budg_app/
+
+      - run: find dist -type l -delete
+        if: runner.os != 'Windows'
 
       - uses: actions/upload-artifact@v4
         with:
