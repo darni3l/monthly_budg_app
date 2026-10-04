@@ -1,0 +1,236 @@
+import { useEffect, useState } from 'react';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Cell,
+  Legend,
+  Pie,
+  PieChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import { categoryColors, categoryLabels } from '../constants';
+import { Card } from '../components/Card';
+import { MetricCard } from '../components/MetricCard';
+import { ProgressBar } from '../components/ProgressBar';
+import { SectionHeader } from '../components/SectionHeader';
+import type { Category } from '../types';
+import { currency } from '../utils/format';
+import { useBudgetContext } from './useBudgetContext';
+
+function CategoryBudgetInput({
+  category,
+  onSave,
+  value,
+}: {
+  category: Category;
+  onSave: (amount: number | null) => void;
+  value: number | undefined;
+}) {
+  const [draft, setDraft] = useState(value ? String(value) : '');
+
+  useEffect(() => {
+    setDraft(value ? String(value) : '');
+  }, [value]);
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    if (trimmed === '') {
+      onSave(null);
+      return;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isFinite(parsed) && parsed >= 0) {
+      onSave(parsed);
+    } else {
+      // Invalid entry — revert to the last saved value rather than keep bad input.
+      setDraft(value ? String(value) : '');
+    }
+  };
+
+  return (
+    <input
+      aria-label={`Monthly budget cap for ${categoryLabels[category]}`}
+      className="w-24 rounded-md border border-slate-200 bg-white px-2 py-1 text-right font-mono text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      inputMode="decimal"
+      onBlur={commit}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter') {
+          (event.target as HTMLInputElement).blur();
+        }
+      }}
+      placeholder="No cap"
+      type="text"
+      value={draft}
+    />
+  );
+}
+
+export function DashboardPage() {
+  const {
+    budget: { data, totals, setCategoryBudget },
+  } = useBudgetContext();
+
+  const categoryTotals = (Object.keys(categoryLabels) as Category[]).map((category) => {
+    const expenseTotal = data.expenses
+      .filter((item) => item.category === category)
+      .reduce((sum, item) => sum + item.amount, 0);
+    const subscriptionTotal =
+      category === 'subscription'
+        ? data.subscriptions.reduce((sum, item) => sum + item.amount, 0)
+        : 0;
+    return { category, value: expenseTotal + subscriptionTotal };
+  });
+
+  const pieData = categoryTotals
+    .filter((item) => item.value > 0)
+    .map((item) => ({
+      name: categoryLabels[item.category],
+      value: Math.round(item.value),
+      color: categoryColors[item.category],
+    }));
+
+  const barData = [...data.history].reverse().slice(0, 6).map((snapshot) => ({
+    month: new Date(snapshot.year, snapshot.month).toLocaleDateString('en-US', { month: 'short' }),
+    Income: snapshot.totalIncome,
+    Expenses: snapshot.totalExpenses,
+  }));
+
+  return (
+    <>
+      <SectionHeader title="Dashboard" subtitle="Your monthly financial overview" />
+      <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          label="Total income"
+          value={currency(totals.totalIncome)}
+          sub="This month"
+          tone="green"
+        />
+        <MetricCard
+          label="Total expenses"
+          value={currency(totals.totalExpenses)}
+          sub={`${data.expenses.length} items`}
+        />
+        <MetricCard
+          label="Saved"
+          value={currency(totals.totalSavings)}
+          sub={`${totals.savingsRate}% savings rate`}
+          tone="blue"
+        />
+        <MetricCard
+          label="Remaining"
+          value={currency(totals.remaining)}
+          sub={totals.remaining < 0 ? 'Over budget' : 'Available'}
+          tone={totals.remaining < 0 ? 'red' : 'green'}
+        />
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-2">
+        <Card title="Spending by category">
+          <div className="mb-3 flex flex-wrap gap-3">
+            {pieData.map((item) => (
+              <span className="flex items-center gap-2 text-xs text-slate-500" key={item.name}>
+                <span className="h-2.5 w-2.5 rounded-sm" style={{ backgroundColor: item.color }} />
+                {item.name} {currency(item.value)}
+              </span>
+            ))}
+          </div>
+          <div className="h-64">
+            <ResponsiveContainer height="100%" width="100%">
+              <PieChart>
+                <Pie
+                  cx="50%"
+                  cy="50%"
+                  data={pieData}
+                  dataKey="value"
+                  innerRadius={48}
+                  outerRadius={82}
+                  stroke="none"
+                >
+                  {pieData.map((entry) => (
+                    <Cell fill={entry.color} key={entry.name} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(value) => currency(Number(value))} />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card title="Budget vs actual">
+          {(Object.keys(categoryLabels) as Category[]).map((category) => {
+            const actual = data.expenses
+              .filter((item) => item.category === category)
+              .reduce((sum, item) => sum + item.amount, 0);
+            const itemLimitSum = data.expenses
+              .filter((item) => item.category === category)
+              .reduce((sum, item) => sum + (item.limit || 0), 0);
+            const categoryBudget = data.categoryBudgets[category];
+            // An explicit category-level cap overrides the sum of individual item limits;
+            // if neither is set, we fall back to the old behavior (no cap shown).
+            const effectiveLimit = categoryBudget ?? itemLimitSum;
+
+            if (actual === 0 && effectiveLimit === 0) return null;
+
+            return (
+              <div className="mb-3" key={category}>
+                <ProgressBar
+                  label={categoryLabels[category]}
+                  max={effectiveLimit || actual}
+                  sublabel={`${currency(actual)}${effectiveLimit ? ` / ${currency(effectiveLimit)}` : ''}`}
+                  value={actual}
+                />
+                <div className="mt-1 flex items-center justify-end gap-2 text-xs text-slate-400">
+                  <span>Monthly cap</span>
+                  <CategoryBudgetInput
+                    category={category}
+                    onSave={(amount) => setCategoryBudget(category, amount)}
+                    value={categoryBudget}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </Card>
+      </div>
+
+      <Card className="mt-4" title="Income vs expenses - last 6 months">
+        <div className="h-72">
+          {barData.length < 2 ? (
+            <div className="flex h-full items-center justify-center rounded-lg border border-dashed border-slate-200 bg-slate-50/70 px-6 text-center">
+              <p className="max-w-md text-sm text-slate-500">
+                Not enough history yet — trends will appear after your first monthly rollover.
+              </p>
+            </div>
+          ) : (
+            <ResponsiveContainer height="100%" width="100%">
+              <BarChart barGap={4} data={barData}>
+                <CartesianGrid stroke="#e2e8f0" strokeDasharray="3 3" />
+                <XAxis
+                  axisLine={false}
+                  dataKey="month"
+                  tick={{ fill: '#64748b', fontSize: 12 }}
+                  tickLine={false}
+                />
+                <YAxis
+                  axisLine={false}
+                  tick={{ fill: '#64748b', fontSize: 12 }}
+                  tickFormatter={(value) => `€${(Number(value) / 1000).toFixed(0)}k`}
+                  tickLine={false}
+                />
+                <Tooltip formatter={(value) => currency(Number(value))} />
+                <Legend />
+                <Bar dataKey="Income" fill="#059669" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Expenses" fill="#2563eb" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
+      </Card>
+    </>
+  );
+}
