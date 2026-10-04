@@ -102,7 +102,7 @@ export function DashboardPage() {
 
   return (
     <>
-      <SectionHeader title="Dashboard" subtitle="Your monthly financial overview" />
+      <SectionHeader title="Dashboard" subtitle="Your monthly financial overview ✨" />
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <MetricCard
           label="Total income"
