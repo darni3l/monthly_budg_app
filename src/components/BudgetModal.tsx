@@ -1,8 +1,16 @@
 import { X } from 'lucide-react';
 import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { categoryLabels } from '../constants';
-import type { BudgetItem, BudgetSection } from '../types';
+import type { BudgetItem, BudgetSection, Category } from '../types';
 import { Button } from './Button';
+
+// Savings and Subscription are tracked exclusively through their own
+// dedicated pages (Goals' savings contributions, Trends' subscription
+// tracker) — they're intentionally excluded here so an expense can't
+// duplicate a total that's already counted elsewhere.
+const EXPENSE_CATEGORY_OPTIONS = (Object.entries(categoryLabels) as [Category, string][]).filter(
+  ([value]) => value !== 'savings' && value !== 'subscription',
+);
 
 type FormState = Record<string, string | number>;
 
@@ -208,7 +216,7 @@ export function BudgetModal({ section, editItem, onClose, onSave }: BudgetModalP
                   onChange={(event) => setField('category', event.target.value)}
                   value={String(form.category || 'variable')}
                 >
-                  {Object.entries(categoryLabels).map(([value, label]) => (
+                  {EXPENSE_CATEGORY_OPTIONS.map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>

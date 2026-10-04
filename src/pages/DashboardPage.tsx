@@ -17,9 +17,25 @@ import { Card } from '../components/Card';
 import { MetricCard } from '../components/MetricCard';
 import { ProgressBar } from '../components/ProgressBar';
 import { SectionHeader } from '../components/SectionHeader';
-import type { Category } from '../types';
+import type { BudgetData, Category } from '../types';
 import { currency } from '../utils/format';
 import { useBudgetContext } from './useBudgetContext';
+
+// Subscription and savings actuals come exclusively from their own dedicated
+// lists — the Trends page's subscription tracker, and the Goals page's
+// savings contributions — never from Expense items of the same category, so
+// nothing gets counted twice.
+function actualByCategory(data: BudgetData, category: Category) {
+  if (category === 'subscription') {
+    return data.subscriptions.reduce((sum, item) => sum + item.amount, 0);
+  }
+  if (category === 'savings') {
+    return data.savings.reduce((sum, item) => sum + item.amount, 0);
+  }
+  return data.expenses
+    .filter((item) => item.category === category)
+    .reduce((sum, item) => sum + item.amount, 0);
+}
 
 function CategoryBudgetInput({
   category,
@@ -75,16 +91,10 @@ export function DashboardPage() {
     budget: { data, totals, setCategoryBudget },
   } = useBudgetContext();
 
-  const categoryTotals = (Object.keys(categoryLabels) as Category[]).map((category) => {
-    const expenseTotal = data.expenses
-      .filter((item) => item.category === category)
-      .reduce((sum, item) => sum + item.amount, 0);
-    const subscriptionTotal =
-      category === 'subscription'
-        ? data.subscriptions.reduce((sum, item) => sum + item.amount, 0)
-        : 0;
-    return { category, value: expenseTotal + subscriptionTotal };
-  });
+  const categoryTotals = (Object.keys(categoryLabels) as Category[]).map((category) => ({
+    category,
+    value: actualByCategory(data, category),
+  }));
 
   const pieData = categoryTotals
     .filter((item) => item.value > 0)
@@ -163,9 +173,7 @@ export function DashboardPage() {
 
         <Card title="Budget vs actual">
           {(Object.keys(categoryLabels) as Category[]).map((category) => {
-            const actual = data.expenses
-              .filter((item) => item.category === category)
-              .reduce((sum, item) => sum + item.amount, 0);
+            const actual = actualByCategory(data, category);
             const itemLimitSum = data.expenses
               .filter((item) => item.category === category)
               .reduce((sum, item) => sum + (item.limit || 0), 0);

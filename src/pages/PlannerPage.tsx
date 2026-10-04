@@ -69,18 +69,22 @@ export function PlannerPage() {
   );
   const unallocated = plannedIncome - totalAllocated;
 
-  // Mirrors DashboardPage's categoryTotals logic exactly, so the Planner's
-  // "actual" figures always agree with what the Dashboard shows — only
-  // subscriptions get merged into their matching category, same as there.
+  // Subscription and savings actuals come exclusively from their own
+  // dedicated lists (the Trends page's subscription tracker, and the Goals
+  // page's savings contributions) — never from Expense items of the same
+  // category, so nothing gets counted twice. Mirrors DashboardPage's logic
+  // exactly, so the Planner's "actual" figures always agree with the
+  // Dashboard's.
   const actualByCategory = (category: Category) => {
-    const expenseTotal = data.expenses
+    if (category === 'subscription') {
+      return data.subscriptions.reduce((sum, item) => sum + item.amount, 0);
+    }
+    if (category === 'savings') {
+      return data.savings.reduce((sum, item) => sum + item.amount, 0);
+    }
+    return data.expenses
       .filter((item) => item.category === category)
       .reduce((sum, item) => sum + item.amount, 0);
-    const subscriptionTotal =
-      category === 'subscription'
-        ? data.subscriptions.reduce((sum, item) => sum + item.amount, 0)
-        : 0;
-    return expenseTotal + subscriptionTotal;
   };
 
   return (

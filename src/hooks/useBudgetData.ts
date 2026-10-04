@@ -37,10 +37,16 @@ export function useBudgetData(initialData?: BudgetData) {
 
   const totals = useMemo(() => {
     const totalIncome = data.income.reduce((sum, item) => sum + item.amount, 0);
-    const totalExpenses = data.expenses.reduce((sum, item) => sum + item.amount, 0);
+    // Subscription and savings costs come exclusively from their own dedicated
+    // lists (data.subscriptions / data.savings), never from Expense items —
+    // this is what prevents double-counting if an expense happens to share
+    // one of those category labels.
+    const totalExpenses = data.expenses
+      .filter((item) => item.category !== 'subscription' && item.category !== 'savings')
+      .reduce((sum, item) => sum + item.amount, 0);
     const totalSavings = data.savings.reduce((sum, item) => sum + item.amount, 0);
     const totalSubscriptions = data.subscriptions.reduce((sum, item) => sum + item.amount, 0);
-    const remaining = totalIncome - totalExpenses - totalSavings;
+    const remaining = totalIncome - totalExpenses - totalSubscriptions - totalSavings;
 
     return {
       totalIncome,

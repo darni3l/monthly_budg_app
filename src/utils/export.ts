@@ -15,17 +15,20 @@ function findCurrentPlan(data: BudgetData) {
   );
 }
 
-// Mirrors DashboardPage's/PlannerPage's categoryTotals logic exactly, so
-// exported figures always agree with what's shown on-screen.
+// Subscription and savings actuals come exclusively from their own dedicated
+// lists, never from Expense items of the same category — mirrors
+// DashboardPage's/PlannerPage's logic exactly, so exported figures always
+// agree with what's shown on-screen, with nothing counted twice.
 function actualByCategory(data: BudgetData, category: Category) {
-  const expenseTotal = data.expenses
+  if (category === 'subscription') {
+    return data.subscriptions.reduce((sum, item) => sum + item.amount, 0);
+  }
+  if (category === 'savings') {
+    return data.savings.reduce((sum, item) => sum + item.amount, 0);
+  }
+  return data.expenses
     .filter((item) => item.category === category)
     .reduce((sum, item) => sum + item.amount, 0);
-  const subscriptionTotal =
-    category === 'subscription'
-      ? data.subscriptions.reduce((sum, item) => sum + item.amount, 0)
-      : 0;
-  return expenseTotal + subscriptionTotal;
 }
 
 export function exportBackup(data: BudgetData) {
@@ -94,9 +97,15 @@ export function exportPDF(data: BudgetData) {
   if (!popup) return;
 
   const income = data.income.reduce((sum, item) => sum + item.amount, 0);
-  const expenses = data.expenses.reduce((sum, item) => sum + item.amount, 0);
+  // Mirrors useBudgetData's totals exactly: expenses excludes
+  // subscription/savings-tagged items so those aren't double counted
+  // against their own dedicated totals below.
+  const expenses = data.expenses
+    .filter((item) => item.category !== 'subscription' && item.category !== 'savings')
+    .reduce((sum, item) => sum + item.amount, 0);
+  const subscriptions = data.subscriptions.reduce((sum, item) => sum + item.amount, 0);
   const savings = data.savings.reduce((sum, item) => sum + item.amount, 0);
-  const remaining = income - expenses - savings;
+  const remaining = income - expenses - subscriptions - savings;
   const currentPlan = findCurrentPlan(data);
 
   const planSection = currentPlan
@@ -132,6 +141,7 @@ export function exportPDF(data: BudgetData) {
       <div class="card"><strong>Income</strong><span>${currency(income)}</span></div>
       <div class="card"><strong>Expenses</strong><span>${currency(expenses)}</span></div>
       <div class="card"><strong>Savings</strong><span>${currency(savings)}</span></div>
+      <div class="card"><strong>Subscriptions</strong><span>${currency(subscriptions)}</span></div>
       <div class="card"><strong>Remaining</strong><span>${currency(remaining)}</span></div>
     </div>
     ${planSection}
