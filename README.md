@@ -74,4 +74,3 @@ public/
 ```
 
 
-Give this prompt at each update/if the port changes: "switch the preview to 5174 explicitly by restarting Vite"
